@@ -1,0 +1,39 @@
+library(tidyverse)
+oam <- readr::read_csv("data/oam_zeitschriftenlisten.csv", trim_ws = TRUE) %>%
+# exclude full oa journals
+  filter(!vertrag %in% c(
+    "OAM_OA-Zeitschriften_DFG-Anträge",
+    "Springer Gold (DEAL)",
+    "Wiley Gold (DEAL)")
+    ) %>%
+  filter(!is.na(issn_l))
+### upload to bigquery
+#' upload to big query
+library(bigrquery)
+bg_oam_journals <- 
+  bq_table("api-project-764811344545", "tmp", "oam_journals")
+if(bq_table_exists(bg_oam_journals)) 
+  bq_table_delete(bg_oam_journals)
+bigrquery::bq_table_upload(
+  bg_oam_journals,
+  oam)
+#' Connection to BQ
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "api-project-764811344545",
+  dataset = "tmp"
+)
+#' obtain yearly article counts by issn-l
+cr_yearly <- readr::read_file("inst/sql/oam_get_cr_per_year.sql")
+cr_yearly_df <- DBI::dbGetQuery(con, cr_yearly)
+cr_oam <- inner_join(cr_yearly_df, oam, by = "issn_l") %>% 
+  select(-issn) %>%
+  distinct()
+#' obtain yearly oa article counts by issn-l from unpaywall
+oa_yearly <- readr::read_file("inst/sql/oam_get_oa_upw_per_year.sql")
+oa_yearly_df <- DBI::dbGetQuery(con, oa_yearly)
+oa_cr_df <- inner_join(cr_oam, oa_yearly_df, by = c("issn_l", "cr_year")) %>%
+  # oa proportion
+  mutate(prop = upw_n / n)
+# export
+readr::write_csv(oa_cr_df, "data/oa_cr_df.csv")

@@ -1,0 +1,31 @@
+While transformative agreements, a licensing model where library expenditures are shifted from subscriptions to open access, become more and more prevalent, journal-level data about these deals is often hard to re-use for analytical purposes. In this blog post, we compiled and enriched data about transformative agreements from German Open Access Monitor. A brief analysis shows that . 
+
+## Introduction
+
+In May 2021, the team behind the German Open Access Monitor at the Forschungszentrum Jülich released lists of journals under transformative aggrements sucessfully negotiated between German consortia and major academic publishers. From the perspective of a data analyst working in a university library, these journal lists can be a helpful starting point to determine the publication output of authors affiliated with your university in these outlets by matching it to your local publication database. Or you want to assess how "transformative" the agreements actually are in terms of open access articles published relative to the overall article volume, an indicator used for instance by the Plan S to measure whether a journal gradually increases its open access share.
+
+While we were excited about the data release about transformative agreements in Germany, we felt that some data wrangling could improve the usability of the journal lists for analytical purposes. We therefore unified the different csv files per agreement into one data file, enriched it with ISSN variants and the ISSN-L, a ISSN that interlinks several ISSNs for a journal. Matching it with Crossref and Unpaywall, we furthermore added the article volume for the period 2018-2020 inclduing open access status information. We made the resulting datasets openly available, which can be downloaded here:
+
+## Data and methods
+
+First, we downloaded 
+
+Next, we obtained article-level data by matching the ISSN variants with the Crossref dump from June 2021, which we imported to Google Big Query for efficient data manipulation and retrieval, re-using the methods from the COKI team. Because Crossref metadata does not distinguish between different article types, we tried to exclude articles from supplements and non-scholarly journal content, such as the table of contents, following Unpaywall's paratext recognition approach, which we extended slightly. 
+
+## Results
+
+## DIscussion and conclusion
+
+- further data points: 
+  -- affilation from german unis -> oam
+  -- licensing
+  -- metadata compliance 
+ 
+- contribute to the evolving landscape if these services with a dedicated focus on the German situation.
+ - dashboard
+ - 
+- international, esac registry needs to be extended to include journal lists in a common format
+
+
+
+

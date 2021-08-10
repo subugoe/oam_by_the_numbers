@@ -1,0 +1,189 @@
+---
+title: "Playground consortia-level analytics"
+output: distill::distill_article
+---
+
+```{r setup, echo = FALSE}
+library(reactable)
+library(tidyverse)
+library(htmltools)
+knitr::opts_chunk$set(
+  comment = "#>",
+  collapse = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  echo = FALSE)
+```
+
+
+```{r data_prep}
+# data preparation
+oa_cr_df <- readr::read_csv("data/oa_cr_df.csv")
+articles_ind <- oa_cr_df %>%
+  distinct(issn_l, vertrag, n) %>%
+  group_by(vertrag) %>%
+  summarise(articles = sum(n))
+journals_ind <- oa_cr_df %>%
+  group_by(vertrag) %>%
+  summarise(journals_n = n_distinct(issn_l)) %>%
+  inner_join(articles_ind, by = "vertrag")
+publisher_ind <- oa_cr_df %>%
+  # we are only interested in hybrid journals 
+  filter(!oa_status %in% c("gold", "bronze", "closed")) %>%
+  group_by(vertrag, oa_status) %>%
+  summarise(upw_n = sum(upw_n)) %>%
+  inner_join(journals_ind, by = "vertrag") %>%
+  mutate(prop = upw_n / articles)
+publisher_table <- publisher_ind %>%
+  select(-upw_n) %>%
+  pivot_wider(names_from = oa_status, values_from = c(prop))
+```
+
+
+```{r consortia_oa, layout="l-body-outset"}
+#' Reactable represenation of oa indicators
+#'
+#' Inspired from <https://glin.github.io/reactable/articles/building-twitter-followers.html>
+#'
+#' @import reactable
+#'
+#' @param ind_table tibble compliance overview table
+#' @param fill_col fill color for bar charts (hex code)
+#'
+#' @export
+library(reactable)
+agreement_tbl <- publisher_table %>%
+  select(vertrag, journals_n, articles, hybrid, green) %>%
+  reactable::reactable(
+    pagination = FALSE,
+    searchable = TRUE,
+    style = list(fontFamily = "Roboto Mono, Consolas, Monaco, monospace"),
+    defaultColDef = colDef(headerClass = "header"),
+    defaultSorted = "articles",
+    columns = list(
+      vertrag = colDef(html = TRUE,
+        name = "Agreement",
+        width = 200
+      ),
+      journals_n = colDef(html = TRUE,
+        name = "Journals",
+        defaultSortOrder = "desc",
+        format = colFormat(separators = TRUE, locales = "en-GB"),
+      #  style = list(fontFamily = "monospace", whiteSpace = "pre"),
+        width = 120
+      ),
+      articles = colDef(html = TRUE,
+        name = "Articles",
+        defaultSortOrder = "desc",
+        format = colFormat(separators = TRUE, locales = "en-GB"),
+      #  style = list(fontFamily = "monospace", whiteSpace = "pre"),
+        width = 120
+      ),
+      hybrid = colDef(html = TRUE,
+        name = "Hybrid OA",
+        defaultSortOrder = "desc",
+        # Render the bar charts using a custom cell render function
+        cell = function(value) {
+          value <- paste0(format(round(value * 100, 1), nsmall = 1), "%")
+          # Fix width here to align single and double-digit percentages
+          value <- format(value, width = 5, justify = "right")
+          react_bar_chart(value, width = value, fill = "#EF9708", background = "#e1e1e1")
+        },
+        align = "left",
+        style = list(whiteSpace = "pre")
+      ),
+      green = colDef(html = TRUE,
+        name = "Green OA",
+        defaultSortOrder = "desc",
+        # Render the bar charts using a custom cell render function
+        cell = function(value) {
+          value <- paste0(format(round(value * 100, 1), nsmall = 1), "%")
+          # Fix width here to align single and double-digit percentages
+          value <- format(value, width = 5, justify = "right")
+          react_bar_chart(value, width = value, fill = "#11C638", background = "#e1e1e1")
+        },
+        align = "left",
+        style = list(whiteSpace = "pre")
+      )
+    ),
+    compact = TRUE
+  )
+
+htmltools::tags$link(href = "https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto&display=swap", rel = "stylesheet")
+
+#' React bar chart helper
+#'
+#' From <https://glin.github.io/reactable/articles/building-twitter-followers.html>
+#'
+#' @importFrom htmltools div
+#'
+#' @noRd
+react_bar_chart <- function(label, width = "100%", height = "14px", fill = "#00bfc4", background = NULL) {
+  bar <- htmltools::div(style = list(background = fill, width = width, height = height))
+  chart <- htmltools::div(style = list(flexGrow = 1, marginLeft = "6px", background = background), bar)
+  htmltools::div(style = list(display = "flex", alignItems = "center"), label, chart)
+}
+
+htmltools::div(class = "agreement-tbl",
+ htmltools::div(class = "agreement-header",
+    htmltools::h2(class = "agreement-head", "Transformative Agreements in Germany"),
+    "Publication volume and OA share of hybrid journals per agreement, 2018-2020.",
+  ),
+  agreement_tbl,
+  htmltools::div(class = "agreement-footer", "
+  Data sources: Open Access Monitor: Zeitschriftenlisten (v1), Crossref, Unpaywall")
+)
+```
+
+```{css}
+.agreement-header {
+  margin: 18px 0;
+  font-size: 16px;
+  font-family: "Roboto", Helvetica Neue, Helvetica, Arial, sans-serif;
+}
+
+.agreement-head {
+  font-size: 20px;
+  font-weight: 600;
+  border-bottom: unset;
+  padding-bottom: unset
+}
+
+.agreement-tbl {
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.followers-tbl a {
+  color: inherit;
+}
+
+.header {
+  border-bottom: 2px solid #555;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.header:hover {
+  background-color: #eee;
+}
+
+/* Highlight headers when sorting */
+.header:hover,
+.header[aria-sort="ascending"],
+.header[aria-sort="descending"] {
+  background-color: #eee;
+}
+
+.agreement-footer {
+  margin: 18px 0;
+  font-size: 10px;
+  font-family: "Roboto", Helvetica Neue, Helvetica, Arial, sans-serif;
+}
+
+.agreement-tbl {
+  margin: 18px 0;
+  font-size: 14px;
+}
+```
