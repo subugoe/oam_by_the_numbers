@@ -1,0 +1,444 @@
+---
+title: "Playground consortia-level analytics"
+output: distill::distill_article
+---
+
+```{r setup, echo = FALSE}
+library(reactable)
+library(tidyverse)
+library(htmltools)
+library(crosstalk)
+knitr::opts_chunk$set(
+    comment = "#>",
+    collapse = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    echo = FALSE
+)
+```
+
+
+```{r data_prep}
+# data preparation
+oa_cr_df <- readr::read_csv("data/oa_cr_df.csv")
+jn_all <- oa_cr_df %>%
+    distinct(issn_l, cr_year, journal, vertrag, n) %>%
+    group_by(issn_l) %>%
+    summarise(articles = sum(n))
+jn_ind <- oa_cr_df %>%
+    # we are only interested in hybrid journals
+    filter(!oa_status %in% c("gold", "bronze", "closed")) %>%
+    group_by(issn_l, journal, vertrag, oa_status) %>%
+    summarise(upw_n = sum(upw_n)) %>%
+    inner_join(jn_all, by = "issn_l") %>%
+    mutate(prop = upw_n / articles)
+jn_ind_table <- jn_ind %>%
+    select(-upw_n) %>%
+    pivot_wider(names_from = oa_status, values_from = c(prop))
+```
+
+```{r}
+# donut
+get_hybrid_color <- function(score) {
+    hybrid_pal <- function(x) rgb(colorRamp(c("#EBD5B3", "#EF9708"))(x), maxColorValue = 255)
+    normalized <- (score - min(score)) / (max(score) - min(score))
+    hybrid_pal(normalized)
+}
+
+get_green_color <- function(score) {
+    green_pal <- function(x) rgb(colorRamp(c("#8ebe99", "#11C638"))(x), maxColorValue = 255)
+    normalized <- (score - min(score)) / (max(score) - min(score))
+    green_pal(normalized)
+}
+
+jn_df <- jn_ind_table %>%
+    ungroup() %>%
+    mutate(across(c(hybrid, green), ~ round(.x, 3) * 100)) %>%
+    mutate(across(c(hybrid, green), ~ replace_na(., 0))) %>%
+    mutate(
+        hybrid_color = get_hybrid_color(hybrid),
+        green_color = get_green_color(green)
+    ) %>%
+    select(journal, articles, hybrid, green, issn_l, vertrag, hybrid_color, green_color)
+```
+
+```{r crosstalk_def}
+shared_tbl <- SharedData$new(jn_df)
+
+shared_filter <- SharedData$new(jn_df, group = shared_tbl$groupName())
+```
+
+```{r}
+jn_tbl <- reactable::reactable(shared_tbl,
+    searchable = TRUE,
+    style = list(fontFamily = "Roboto Mono, Consolas, Monaco, monospace"),
+    defaultColDef = colDef(headerClass = "header"),
+    defaultSorted = "journal",
+    columns = list(
+        journal = colDef(
+            name = "Journal",
+            cell = function(value, index) {
+                info <- jn_df$issn_l[index]
+                vertrag_short <- jn_df$vertrag[index]
+                journal_info <- htmltools::tags$a(
+                    href = paste0("https://zdb-katalog.de/list.xhtml?t=", info, "&key=iss&frm=O&asc=false"),
+                    as.character(value)
+                )
+                tagList(
+                    div(style = list(fontWeight = 400, color = "#333"), journal_info),
+                    div(style = list(fontSize = 11), vertrag_short)
+                )
+            }
+        ),
+        hybrid = colDef(
+            name = "Hybrid Score",
+            defaultSortOrder = "desc",
+            # Show the user score in a donut chart like TMDb does. Since donut charts
+            # are hard to compare, apply a color scale as well.
+            cell = JS("function(cellInfo) {
+        const sliceColor = cellInfo.row['hybrid_color']
+        const sliceLength = 2 * Math.PI * 24
+        const sliceOffset = sliceLength * (1 - cellInfo.value / 100)
+        const donutChart = (
+          '<svg width=60 height=60 style=\"transform: rotate(-90deg)\" focusable=false>' +
+            '<circle cx=30 cy=30 r=24 fill=none stroke-width=4 stroke=rgba(0,0,0,0.1)></circle>' +
+            '<circle cx=30 cy=30 r=24 fill=none stroke-width=4 stroke=' + sliceColor +
+            ' stroke-dasharray=' + sliceLength + ' stroke-dashoffset=' + sliceOffset + '></circle>' +
+          '</svg>'
+        )
+        const label = '<div style=\"position: absolute; top: 50%; left: 50%; ' +
+          'transform: translate(-50%, -50%)\">' + cellInfo.value + '%' + '</div>'
+        return '<div style=\"display: inline-flex; position: relative\">' + donutChart + label + '</div>'
+      }"),
+            html = TRUE,
+            align = "center",
+            width = 140,
+            class = "user-score"
+        ),
+        green = colDef(
+            name = "Green Score",
+            defaultSortOrder = "desc",
+            # Show the user score in a donut chart like TMDb does. Since donut charts
+            # are hard to compare, apply a color scale as well.
+            cell = JS("function(cellInfo) {
+        const sliceColor = cellInfo.row['green_color']
+        const sliceLength = 2 * Math.PI * 24
+        const sliceOffset = sliceLength * (1 - cellInfo.value / 100)
+        const donutChart = (
+          '<svg width=60 height=60 style=\"transform: rotate(-90deg)\" focusable=false>' +
+            '<circle cx=30 cy=30 r=24 fill=none stroke-width=4 stroke=rgba(0,0,0,0.1)></circle>' +
+            '<circle cx=30 cy=30 r=24 fill=none stroke-width=4 stroke=' + sliceColor +
+            ' stroke-dasharray=' + sliceLength + ' stroke-dashoffset=' + sliceOffset + '></circle>' +
+          '</svg>'
+        )
+        const label = '<div style=\"position: absolute; top: 50%; left: 50%; ' +
+          'transform: translate(-50%, -50%)\">' + cellInfo.value + '%' + '</div>'
+        return '<div style=\"display: inline-flex; position: relative\">' + donutChart + label + '</div>'
+      }"),
+            html = TRUE,
+            align = "center",
+            width = 140,
+            class = "user-score"
+        ),
+        # dont show
+        issn_l = colDef(show = FALSE),
+        vertrag = colDef(show = FALSE),
+        green_color = colDef(show = FALSE),
+        hybrid_color = colDef(show = FALSE)
+    ),
+    theme = reactableTheme(
+    highlightColor = "#f3fafb",
+    borderColor = "hsl(0, 0%, 93%)",
+    headerStyle = list(borderColor = "hsl(0, 0%, 90%)"),
+    # Vertically center cells
+    cellStyle = list(display = "flex", flexDirection = "column", justifyContent = "center"),
+    searchInputStyle = list(
+      marginTop = "16px",
+      paddingRight = "30px",
+      paddingTop = "8px",
+      paddingBottom = "8px",
+      width = "100%",
+      backgroundPosition = "right 8px center",
+      textAlign = "left",
+      color = "hsl(0, 0%, 10%)",
+      fontWeight = "700",
+      fontSize = "13px",
+      letterSpacing = "0.4px",
+      textTransform = "uppercase"
+      #border = "none"
+      )
+    ),
+    language = reactableLang(
+      searchPlaceholder = "FILTER JOURNALS",
+      noData = "No journals found",
+      pageInfo = "{rowStart}\u2013{rowEnd} of {rows} journals",
+      pagePrevious = "\u276e",
+      pageNext = "\u276f",
+    )
+)
+```
+
+```{r}
+# Custom Crosstalk select filter. This is a single-select input that works
+# on columns containing multiple values per row (list columns).
+select_filter <- function(id, label, shared_data, group, choices = NULL,
+                          width = "100%", class = "filter-input") {
+  values <- shared_data$data()[[group]]
+  keys <- shared_data$key()
+  if (is.list(values)) {
+    # Multiple values per row
+    flat_keys <- unlist(mapply(rep, keys, sapply(values, length)))
+    keys_by_value <- split(flat_keys, unlist(values), drop = TRUE)
+    choices <- if (is.null(choices)) sort(unique(unlist(values))) else choices
+  } else {
+    # Single value per row
+    keys_by_value <- split(seq_along(keys), values, drop = TRUE)
+    choices <- if (is.null(choices)) sort(unique(values)) else choices
+  }
+
+  script <- sprintf("
+    window['__ct__%s'] = (function() {
+      const handle = new window.crosstalk.FilterHandle('%s')
+      const keys = %s
+      return {
+        filter: function(value) {
+          if (!value) {
+            handle.clear()
+          } else {
+            handle.set(keys[value])
+          }
+        }
+      }
+    })()
+  ", id, shared_data$groupName(), jsonlite::toJSON(keys_by_value))
+
+  div(
+    class = class,
+    tags$label(`for` = id, label),
+    tags$select(
+      id = id,
+      onchange = sprintf("window['__ct__%s'].filter(this.value)", id),
+      style = sprintf("width: %s", validateCssUnit(width)),
+      tags$option(value = "", "All"),
+      lapply(choices, function(value) tags$option(value = value, value))
+    ),
+    tags$script(HTML(script))
+  )
+}
+
+# Custom Crosstalk search filter. This is a free-form text field that does
+# case-insensitive text searching on a single column.
+search_filter <- function(id, label, shared_data, group, width = "100%", class = "filter-input") {
+  values <- as.list(shared_data$data()[[group]])
+  values_by_key <- setNames(values, shared_data$key())
+  
+  script <- sprintf("
+    window['__ct__%s'] = (function() {
+      const handle = new window.crosstalk.FilterHandle('%s')
+      const valuesByKey = %s
+      return {
+        filter: function(value) {
+          if (!value) {
+            handle.clear()
+          } else {
+            const regex = new RegExp(value, 'i')
+            const filtered = Object.keys(valuesByKey).filter(function(key) {
+              const value = valuesByKey[key]
+              if (Array.isArray(value)) {
+                for (let i = 0; i < value.length; i++) {
+                  if (regex.test(value[i])) {
+                    return true
+                  }
+                }
+              } else {
+                return regex.test(value)
+              }
+            })
+            handle.set(filtered)
+          }
+        }
+      }
+    })()
+  ", id, shared_data$groupName(), jsonlite::toJSON(values_by_key))
+  
+  div(
+    class = class,
+    tags$label(`for` = id, label),
+    tags$input(
+      id = id,
+      type = "search",
+      oninput = sprintf("window['__ct__%s'].filter(this.value)", id),
+      style = sprintf("width: %s", validateCssUnit(width))
+    ),
+    tags$script(HTML(script))
+  )
+}
+
+# Custom Crosstalk range filter. This is a simple range input that only filters
+# minimum values of a column.
+range_filter <- function(id, label, shared_data, group, min = NULL, max = NULL,
+                         step = NULL, suffix = "", width = "100%", class = "filter-input") {
+  values <- shared_data$data()[[group]]
+  values_by_key <- setNames(as.list(values), shared_data$key())
+
+  script <- sprintf("
+    window['__ct__%s'] = (function() {
+      const handle = new window.crosstalk.FilterHandle('%s')
+      const valuesByKey = %s
+      return {
+        filter: function(value) {
+          const filtered = Object.keys(valuesByKey).filter(function(key) {
+            return valuesByKey[key] >= value
+          })
+          handle.set(filtered)
+        }
+      }
+    })()
+  ", id, shared_data$groupName(), jsonlite::toJSON(values_by_key))
+
+  min <- if (!is.null(min)) min else min(values)
+  max <- if (!is.null(max)) max else max(values)
+  value <- min
+
+  oninput <- paste(
+    sprintf("document.getElementById('%s__value').textContent = this.value + '%s';", id, suffix),
+    sprintf("window['__ct__%s'].filter(this.value)", id)
+  )
+
+  div(
+    class = class,
+    tags$label(`for` = id, label),
+    div(
+      tags$input(
+        id = id,
+        type = "range",
+        min = min,
+        max = max,
+        step = step,
+        value = value,
+        oninput = oninput,
+        onchange = oninput, # For IE11 support
+        style = sprintf("width: %s", validateCssUnit(width))
+      )
+    ),
+    span(id = paste0(id, "__value"), paste0(value, suffix)),
+    tags$script(HTML(script))
+  )
+}
+```
+
+```{r}
+# font
+htmltools::tags$link(href = "https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto&display=swap", rel = "stylesheet")
+
+htmltools::div(class = "agreement-tbl",
+ htmltools::div(class = "agreement-header",
+    htmltools::h2(class = "agreement-head", "Transformative Agreements in Germany"),
+    "Publication volume and OA share of hybrid journals per agreement, 2018-2020.",
+  ),
+ # select_filter("filter_title", "Search contract", shared_tbl, "vertrag"),
+  select_filter("filter_title", "Select Contract", shared_filter, "vertrag"),
+    jn_tbl,
+  htmltools::div(class = "agreement-footer", "Data sources: Open Access Monitor: Zeitschriftenlisten (v1), Crossref, Unpaywall")
+)
+```
+
+```{css}
+.agreement-header {
+  margin: 18px 0;
+  font-size: 16px;
+  font-family: "Roboto", Helvetica Neue, Helvetica, Arial, sans-serif;
+}
+
+.agreement-head {
+  font-size: 20px;
+  font-weight: 600;
+  border-bottom: unset;
+  padding-bottom: unset
+}
+
+.agreement-tbl {
+  font-size: 14px;
+  line-height: 18px;
+  font-family: "Roboto", Helvetica Neue, Helvetica, Arial, sans-serif;
+}
+
+.followers-tbl a {
+  color: inherit;
+}
+
+.header {
+  border-bottom: 2px solid #555;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.header:hover {
+  background-color: #eee;
+}
+
+/* Highlight headers when sorting */
+.header:hover,
+.header[aria-sort="ascending"],
+.header[aria-sort="descending"] {
+  background-color: #eee;
+}
+
+.agreement-footer {
+  margin: 18px 0;
+  font-size: 10px;
+  font-family: "Roboto", Helvetica Neue, Helvetica, Arial, sans-serif;
+}
+
+.agreement-tbl {
+  margin: 18px 0;
+  font-size: 14px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  border: none;
+  }
+
+.filter-input {
+  margin-top: 8px;
+  margin-left: 0px;
+  flex: 1;
+  min-width: 250px;
+  font-family: "Roboto Mono", Consolas, Monaco, monospace;
+}
+
+.filter-input label {
+  color: hsl(0, 0%, 45%);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.filter-input select,
+.filter-input input[type="search"] {
+  padding: 0 6px;
+  height: 32px;
+  font-family: "Roboto Mono", Consolas, Monaco, monospace;
+}
+}
+
+.filter-input input[type="search"] {
+  /* Reset Bootstrap 3 styles */
+  -webkit-appearance: searchfield;
+}
+
+.filter-input input[type="search"]::-webkit-search-cancel-button {
+  /* Reset Bootstrap 3 styles */
+  -webkit-appearance: searchfield-cancel-button;
+}
+
+.filter-input input[type="range"] {
+  /* Reset for IE11 */
+  padding: 0;
+}
+```
