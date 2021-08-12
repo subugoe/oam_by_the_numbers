@@ -1,6 +1,6 @@
 ---
-title: "Playground consortia-level analytics"
 output: distill::distill_article
+title: "journal-level"
 ---
 
 ```{r setup, echo = FALSE}
@@ -82,7 +82,8 @@ jn_tbl <- reactable::reactable(shared_tbl,
                 vertrag_short <- jn_df$vertrag[index]
                 journal_info <- htmltools::tags$a(
                     href = paste0("https://zdb-katalog.de/list.xhtml?t=", info, "&key=iss&frm=O&asc=false"),
-                    as.character(value)
+                    as.character(value),
+                    target="_blank"
                 )
                 tagList(
                     div(style = list(fontWeight = 400, color = "#333"), journal_info),

@@ -1,5 +1,5 @@
 ---
-title: "Playground consortia-level analytics"
+title: "consortia-level"
 output: distill::distill_article
 ---
 
@@ -41,6 +41,18 @@ publisher_table <- publisher_ind %>%
 
 
 ```{r consortia_oa, layout="l-body-outset"}
+#' React bar chart helper
+#'
+#' From <https://glin.github.io/reactable/articles/building-twitter-followers.html>
+#'
+#' @importFrom htmltools div
+#'
+#' @noRd
+react_bar_chart <- function(label, width = "100%", height = "14px", fill = "#00bfc4", background = NULL) {
+  bar <- htmltools::div(style = list(background = fill, width = width, height = height))
+  chart <- htmltools::div(style = list(flexGrow = 1, marginLeft = "6px", background = background), bar)
+  htmltools::div(style = list(display = "flex", alignItems = "center"), label, chart)
+}
 #' Reactable represenation of oa indicators
 #'
 #' Inspired from <https://glin.github.io/reactable/articles/building-twitter-followers.html>
@@ -111,18 +123,6 @@ agreement_tbl <- publisher_table %>%
 
 htmltools::tags$link(href = "https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto&display=swap", rel = "stylesheet")
 
-#' React bar chart helper
-#'
-#' From <https://glin.github.io/reactable/articles/building-twitter-followers.html>
-#'
-#' @importFrom htmltools div
-#'
-#' @noRd
-react_bar_chart <- function(label, width = "100%", height = "14px", fill = "#00bfc4", background = NULL) {
-  bar <- htmltools::div(style = list(background = fill, width = width, height = height))
-  chart <- htmltools::div(style = list(flexGrow = 1, marginLeft = "6px", background = background), bar)
-  htmltools::div(style = list(display = "flex", alignItems = "center"), label, chart)
-}
 
 htmltools::div(class = "agreement-tbl",
  htmltools::div(class = "agreement-header",
