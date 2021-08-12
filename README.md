@@ -18,7 +18,7 @@
 - [x] Fehlende ISSNs ergänzt (rund 40)
 - [x] Falschzuordnungen berichtigt
 - [ ] Duplikate bereinigen (mehr als eine ISSN-L je Titel, rund 40 Titel)
-- [ ] Mapping ESAC Registry und GEPRIS (DFG-Förderung?)
+- [ ] Mapping ESAC Registry und GEPRIS (DFG-Förderung)
 
 #### OAM Analytics
 
@@ -31,5 +31,5 @@
 
 (angelehnt an https://glin.github.io/reactable/index.html)
 
-- Portfolio-Überblick {reactable}
-- Journal-level Sicht {reactable}, {crosstalk}
+- [Portfolio-Überblick](https://subugoe.github.io/oam_by_the_numbers/react_playground.html) {reactable}
+- [Journal-level Sicht](https://subugoe.github.io/oam_by_the_numbers/react_jn.html) {reactable}, {crosstalk}
