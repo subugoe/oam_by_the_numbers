@@ -35,5 +35,11 @@ oa_yearly_df <- DBI::dbGetQuery(con, oa_yearly)
 oa_cr_df <- inner_join(cr_oam, oa_yearly_df, by = c("issn_l", "cr_year")) %>%
   # oa proportion
   mutate(prop = upw_n / n)
+#' normalized jn and publisher name
+cr_jn_disambiguate <- readr::read_file("inst/sql/oam_jn_disambiguate.sql")
+cr_jn_disambiguate_df <- DBI::dbGetQuery(con, cr_jn_disambiguate)
+oa_cr <- inner_join(oa_cr_df, cr_jn_disambiguate_df, by = "issn_l") %>%
+  mutate(journal = container_title) %>%
+  select(-container_title)
 # export
-readr::write_csv(oa_cr_df, "data/oa_cr_df.csv")
+readr::write_csv(oa_cr, "data/oa_cr_df.csv")
