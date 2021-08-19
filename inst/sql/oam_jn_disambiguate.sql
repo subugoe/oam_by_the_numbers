@@ -43,7 +43,5 @@ FROM (
     publisher
   ORDER BY
     n DESC )
-WHERE
-  year = 2020
 GROUP BY
   issn_l

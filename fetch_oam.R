@@ -32,7 +32,12 @@ cr_oam <- inner_join(cr_yearly_df, oam, by = "issn_l") %>%
 #' obtain yearly oa article counts by issn-l from unpaywall
 oa_yearly <- readr::read_file("inst/sql/oam_get_oa_upw_per_year.sql")
 oa_yearly_df <- DBI::dbGetQuery(con, oa_yearly)
-oa_cr_df <- inner_join(cr_oam, oa_yearly_df, by = c("issn_l", "cr_year")) %>%
+#' fill missing colors
+all_comb <- oa_yearly_df %>%
+  tidyr::expand(issn_l, cr_year, oa_status) %>%
+  left_join(oa_yearly_df, by = c("issn_l", "cr_year", "oa_status")) %>%
+  mutate(upw_n = ifelse(is.na(upw_n), 0, upw_n))
+oa_cr_df <- inner_join(cr_oam, all_comb, by = c("issn_l", "cr_year")) %>%
   # oa proportion
   mutate(prop = upw_n / n)
 #' normalized jn and publisher name
