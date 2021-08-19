@@ -1,5 +1,6 @@
 library(tidyverse)
-oam <- readr::read_csv("data/oam_zeitschriftenlisten.csv", trim_ws = TRUE) %>%
+oam <- readr::read_delim("data/oam_zeitschriftenlisten.csv", 
+  trim_ws = TRUE, delim = ";") %>%
 # exclude full oa journals
   filter(!vertrag %in% c(
     "OAM_OA-Zeitschriften_DFG-Anträge",
