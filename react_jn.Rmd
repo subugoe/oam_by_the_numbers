@@ -35,6 +35,14 @@ jn_ind <- oa_cr_df %>%
 jn_ind_table <- jn_ind %>%
     select(-upw_n) %>%
     pivot_wider(names_from = oa_status, values_from = c(prop))
+# h2020
+h2020_cr_df <- readr::read_csv("data/h2020_cr_df.csv")
+h2020_cr_all <- h2020_cr_df %>%
+    group_by(issn_l) %>%
+    summarise(h2020_n = sum(h2020_n))
+jn_ind_table <- inner_join(jn_ind_table, h2020_cr_all, by = "issn_l") %>%
+    mutate(h2020 = h2020_n / articles) %>%
+    select(-h2020_n)
 ```
 
 ```{r}
@@ -51,15 +59,23 @@ get_green_color <- function(score) {
     green_pal(normalized)
 }
 
+get_ec_color <- function(score) {
+    ec_pal <- function(x) rgb(colorRamp(c("#445c91", "#003399"))(x), maxColorValue = 255)
+    normalized <- (score - min(score)) / (max(score) - min(score))
+    ec_pal(normalized)
+}
+
 jn_df <- jn_ind_table %>%
     ungroup() %>%
-    mutate(across(c(hybrid, green), ~ round(.x, 3) * 100)) %>%
-    mutate(across(c(hybrid, green), ~ replace_na(., 0))) %>%
+    mutate(across(c(hybrid, green, h2020), ~ round(.x, 3) * 100)) %>%
+    mutate(across(c(hybrid, green, h2020), ~ replace_na(., 0))) %>%
     mutate(
         hybrid_color = get_hybrid_color(hybrid),
-        green_color = get_green_color(green)
+        green_color = get_green_color(green),
+        ec_color = get_ec_color(h2020)
     ) %>%
-    select(journal, articles, hybrid, green, issn_l, vertrag, hybrid_color, green_color)
+    select(journal, articles, hybrid,
+      green, h2020, issn_l, vertrag, hybrid_color, green_color, ec_color)
 ```
 
 ```{r crosstalk_def}
@@ -141,12 +157,42 @@ jn_tbl <- reactable::reactable(shared_tbl,
             width = 140,
             class = "user-score"
         ),
+        h2020 = colDef(
+            name = "H2020 Score",
+            defaultSortOrder = "desc",
+            # Show the user score in a donut chart like TMDb does. Since donut charts
+            # are hard to compare, apply a color scale as well.
+            cell = JS("function(cellInfo) {
+        const sliceColor = cellInfo.row['ec_color']
+        const sliceLength = 2 * Math.PI * 24
+        const sliceOffset = sliceLength * (1 - cellInfo.value / 100)
+        const donutChart = (
+          '<svg width=60 height=60 style=\"transform: rotate(-90deg)\" focusable=false>' +
+            '<circle cx=30 cy=30 r=24 fill=none stroke-width=4 stroke=rgba(0,0,0,0.1)></circle>' +
+            '<circle cx=30 cy=30 r=24 fill=none stroke-width=4 stroke=' + sliceColor +
+            ' stroke-dasharray=' + sliceLength + ' stroke-dashoffset=' + sliceOffset + '></circle>' +
+          '</svg>'
+        )
+        const label = '<div style=\"position: absolute; top: 50%; left: 50%; ' +
+          'transform: translate(-50%, -50%)\">' + cellInfo.value + '%' + '</div>'
+        return '<div style=\"display: inline-flex; position: relative\">' + donutChart + label + '</div>'
+      }"),
+            html = TRUE,
+            align = "center",
+            width = 140,
+            class = "user-score"
+        ),
         # dont show
         issn_l = colDef(show = FALSE),
         vertrag = colDef(show = FALSE),
         green_color = colDef(show = FALSE),
-        hybrid_color = colDef(show = FALSE)
+        hybrid_color = colDef(show = FALSE),
+        ec_color = colDef(show = FALSE)
     ),
+    columnGroups = list(
+    colGroup(name = "Open Access", columns = c("hybrid", "green")),
+    colGroup(name = "Funding", columns = c("h2020"))
+  ),
     theme = reactableTheme(
     highlightColor = "#f3fafb",
     borderColor = "hsl(0, 0%, 93%)",
@@ -340,7 +386,7 @@ htmltools::div(class = "agreement-tbl",
  # select_filter("filter_title", "Search contract", shared_tbl, "vertrag"),
   select_filter("filter_title", "Select Contract", shared_filter, "vertrag"),
     jn_tbl,
-  htmltools::div(class = "agreement-footer", "Data sources: Open Access Monitor: Zeitschriftenlisten (v1), Crossref, Unpaywall")
+  htmltools::div(class = "agreement-footer", "Data sources: Open Access Monitor: Zeitschriftenlisten (v1), Crossref, Unpaywall, OpenAIRE Research Graph")
 )
 ```
 
