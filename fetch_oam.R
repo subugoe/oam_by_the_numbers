@@ -49,3 +49,14 @@ oa_cr <- inner_join(oa_cr_df, cr_jn_disambiguate_df, by = "issn_l") %>%
   select(-container_title)
 # export
 readr::write_csv(oa_cr, "data/oa_cr_df.csv")
+#' h2020 publications in oam journals
+h2020_yearly <- readr::read_file("inst/sql/oam_get_h2020_per_year.sql")
+h2020_yearly_df <-  DBI::dbGetQuery(con, h2020_yearly) %>%
+  rename(h2020_n = n)
+h2020_cr_df <- oa_cr %>%
+  distinct(issn_l, cr_year, n) %>%
+  left_join(h2020_yearly_df, by = c("issn_l", "cr_year")) %>%
+  mutate(h2020_n = ifelse(is.na(h2020_n), 0, h2020_n)) %>%
+  # h2020 proportion
+  mutate(prop = h2020_n / n)
+readr::write_csv(h2020_cr, "data/h2020_cr_df.csv")
